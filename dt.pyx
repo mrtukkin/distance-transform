@@ -14,8 +14,10 @@ cdef class DistanceFunction(object):
   User-declared distance functions must inherit from this base class so that
   the Cython-compiled code can access the methods provided.
   """
+
   cdef intersection(self, int x0, int x1, double y0, double y1):
     raise NotImplementedError
+
   cdef envelope(self, int x, double y):
     raise NotImplementedError
 
@@ -32,13 +34,17 @@ cdef class L2(DistanceFunction):
     b (float): The quadratic offset (default: 0.0)
   """
   cdef double a, b
+
   def __init__(self, a=1.0, b=0.0):
     self.a = a
     self.b = b
+
   cdef intersection(self, int x0, int x1, double y0, double y1):
-    return ((y1-y0) - self.b*(x1-x0) + self.a*(x1*x1 - x0*x0)) / (2*self.a*(x1-x0))
+    return ((y1 - y0) - self.b * (x1 - x0) +
+            self.a * (x1 * x1 - x0 * x0)) / (2 * self.a * (x1 - x0))
+
   cdef envelope(self, int x, double y):
-    return self.a*x*x + self.b*x + y
+    return self.a * x * x + self.b * x + y
 
 
 # ----------------------------------------------------------------------------
@@ -68,20 +74,18 @@ def compute(x, axes=None, f=L2):
   arg = tuple(np.empty(shape, dtype=int) for axis in axes)
 
   # create some scratch space for the transforms
-  v = np.empty((max(shape)+1,), dtype=int)
-  z = np.empty((max(shape)+1,), dtype=float)
+  v = np.empty((max(shape) + 1,), dtype=int)
+  z = np.empty((max(shape) + 1,), dtype=float)
 
   # compute transforms over the given axes
   for n, axis in enumerate(axes):
-
-    numel  = shape[axis]
+    numel = shape[axis]
     minbuf = np.empty((numel,), dtype=float)
     argbuf = np.empty((numel,), dtype=int)
-    slices = map(xrange, shape)
+    slices = map(range, shape)
     slices[axis] = [Ellipsis]
 
     for index in itertools.product(*slices):
-
       # compute the optimal minima
       _compute1d(min[index], f, minbuf, argbuf, z, v)
       min[index] = minbuf
@@ -101,9 +105,9 @@ def compute(x, axes=None, f=L2):
 # ----------------------------------------------------------------------------
 @cython.boundscheck(False)
 cdef _compute1d(
-    ndarray[double] x, DistanceFunction f,  # input array and distance function
-    ndarray[double] min, ndarray[long] arg, # output arrays
-    ndarray[double] z, ndarray[long] v):    # working buffers
+  ndarray[double] x, DistanceFunction f,
+  ndarray[double] min, ndarray[long] arg,
+  ndarray[double] z, ndarray[long] v):
   """Low-level 1D distance transform
 
   This Cython function provides the implementation of the 1D distance transform.
@@ -133,15 +137,16 @@ cdef _compute1d(
 
   # compute the intersection points
   k = 0
-  for q in xrange(1,N):
+  for q in range(1, N):
     s = f.intersection(v[k], q, x[v[k]], x[q])
     while s <= z[k]:
-      k = k-1
+      k = k - 1
       s = f.intersection(v[k], q, x[v[k]], x[q])
-    k, v[k], z[k] = k+1, q, s
+    k, v[k], z[k] = k + 1, q, s
 
   # compute the projection onto the lower envelope
   k = 0
-  for q in xrange(N):
-    while z[k+1] < q: k += 1
-    min[q], arg[q] = f.envelope(q-v[k], x[v[k]]), v[k]
+  for q in range(N):
+    while z[k + 1] < q:
+      k += 1
+    min[q], arg[q] = f.envelope(q - v[k], x[v[k]]), v[k]
